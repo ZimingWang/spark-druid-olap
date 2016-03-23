@@ -61,6 +61,17 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
                              aggExprToLiteralExpr: Map[Expression, Expression] = Map(),
                              aggregateOper: Option[Aggregate] = None,
                              curId: AtomicLong = new AtomicLong(-1)) {
+  private var uid: Int = 0
+
+  def makeUniqueOutDimName(nm: String): String = {
+    var oAttrName = nm
+    do {
+      uid += 1
+      oAttrName = nm + "$" + uid
+    }
+    while (drInfo.sourceToDruidMapping.contains(oAttrName))
+    oAttrName
+  }
 
   def dimension(d: DimensionSpec) = {
     this.copy(dimensions = (dimensions :+ d))

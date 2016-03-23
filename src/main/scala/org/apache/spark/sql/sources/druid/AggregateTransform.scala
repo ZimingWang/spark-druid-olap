@@ -81,7 +81,14 @@ trait AggregateTransform {
               dtGrpElem.pushedExpression.dataType, StringType)
         )
       }
-      case _ => None
+      case _ => {
+        for (fn <- JSCodeGenUtils.genJSFn(dqb, ge, false)) yield {
+          val outDName = dqb.makeUniqueOutDimName(fn.inParams.last)
+          dqb.dimension(new ExtractionDimensionSpec(fn.inParams.last, outDName,
+            new JavaScriptExtractionFunctionSpec(fn.jsFn))).
+            outputAttribute(outDName, ge, ge.dataType, StringType)
+        }
+      }
     }
   }
 
