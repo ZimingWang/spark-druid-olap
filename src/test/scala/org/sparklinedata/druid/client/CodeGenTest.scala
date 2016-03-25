@@ -22,10 +22,10 @@ import org.scalatest.BeforeAndAfterAll
 
 class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
 
-  test("inclauseTest1",
+  test("gbexprtest1",
     "select sum(c_acctbal) as bal from orderLineItemPartSupplier group by " +
-      "(CAST(CONCAT(TO_DATE(CAST(CONCAT(TO_DATE(l_shipdate),' 00:00:00') AS TIMESTAMP)) , " +
-      "' 00:00:00') AS TIMESTAMP))",
+      "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), ' 00:00:00')" +
+      " AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by bal",
     1,
-    true)
+    true, true)
 }

@@ -24,19 +24,20 @@ import org.apache.spark.sql.types._
 import org.sparklinedata.druid.metadata._
 import scala.collection.mutable
 
-case class JSCode(jsFn: String, inParams: Set[String])
+case class JSCode(jsFn: String, inParams: List[String])
 
 object JSCodeGenUtils extends Logging {
   def genJSFn(dqb: DruidQueryBuilder,
               e: Expression, mulInParamsAllowed: Boolean): Option[JSCode] = {
     val cGen = new JSExprCodeGen(dqb, mulInParamsAllowed)
-    for (fnb <- cGen.genExprCode(e) if cGen.inParams.nonEmpty) yield {
-      val fnParams: Set[String] = cGen.inParams.toSet
+    for (fnb <- cGen.genExprCode(e) if cGen.inParams.nonEmpty;
+         rStmt <- cGen.genCastExprCode(fnb.getCodeRef, e.dataType, StringType)) yield {
+      val fnParams: List[String] = cGen.inParams.toList
       JSCode(
-        s"""function ("${fnParams.mkString(", ")}) {
+        s"""function (${fnParams.mkString(", ")}) {
             ${fnb.linesSoFar}
 
-            return(${fnb.getCodeRef});
+            return(${rStmt});
             }""".stripMargin,
         fnParams)
     }
@@ -55,11 +56,13 @@ private case class JSExprCode(val fnVar: Option[String], val linesSoFar: String,
 
 private class JSExprCodeGen(dqb: DruidQueryBuilder, mulInParamsAllowed: Boolean) {
   var inParams: mutable.HashSet[String] = mutable.HashSet()
+  var toDateVar: mutable.HashSet[String] = mutable.HashSet()
+
   private var uid: Int = 0
 
   def makeUniqueVarName: String = {
     uid += 1
-    "var$" + uid
+    "v" + uid
   }
 
   def genExprCode(e: Expression): Option[JSExprCode] = {
@@ -67,12 +70,21 @@ private class JSExprCodeGen(dqb: DruidQueryBuilder, mulInParamsAllowed: Boolean)
       case AttributeReference(nm, dT, _, _) =>
         for (dD <- dqb.druidColumn(nm)
              if (dD.isInstanceOf[DruidDimension] || dD.isInstanceOf[DruidTimeDimension]) &&
-               validInParams(nm)) yield
-          new JSExprCode(nm, e.dataType)
-      case Literal(value, dataType) =>
-        for (l <- genCastExprCode(e.toString, StringType, dataType)) yield
-          new JSExprCode(s""""${e.toString}"""", dataType)
-
+               validInParams(nm)) yield {
+          val v = if (dD.isInstanceOf[DruidTimeDimension]) dqb.druidColumn(nm).get.name else nm
+          new JSExprCode(v, e.dataType)
+        }
+      case Literal(value, dataType) => {
+        var valStr: Option[String] = None
+        dataType match {
+          case IntegerType | LongType | ShortType | DoubleType | FloatType  =>
+            valStr = Some(value.toString)
+          case StringType => valStr = Some(s""""${e.toString}"""")
+          case NullType => valStr = Some("null")
+          case _ => valStr = genCastExprCode(value.toString, StringType, dataType)
+        }
+        if (valStr.nonEmpty) Some(new JSExprCode(valStr.get, dataType)) else None
+      }
       case Cast(s, dt) => Some(genCastExprCode(s, dt)).flatten
 
       case Concat(eLst) =>
@@ -108,26 +120,15 @@ private class JSExprCodeGen(dqb: DruidQueryBuilder, mulInParamsAllowed: Boolean)
         for (fn <- genExprCode(de); dtFn <- getJSDateExprCode(fn.fnDT, fn.getCodeRef)) yield {
           val v1 = makeUniqueVarName
           val v2 = makeUniqueVarName
+          toDateVar += v2
           JSExprCode(Some(v2),
             fn.linesSoFar +
               s"""| var $v1 = $dtFn;
                   | var $v2 = new Date($v1.getFullYear(), $v1.getMonth(), $v1.getDate());
             """.stripMargin, "", DateType)
         }
-      case DateAdd(sd, d) =>
-        for (sdE <- genExprCode(sd); dE <- genExprCode(d)) yield {
-          JSExprCode(None,
-            s"${sdE.linesSoFar} ${dE.linesSoFar}",
-            s"((${sdE.getCodeRef}).getDate() + (${dE.getCodeRef}))",
-            DateType)
-        }
-      case DateSub(sd, d) =>
-        for (sdE <- genExprCode(sd); dE <- genExprCode(d)) yield {
-          JSExprCode(None,
-            s"${sdE.linesSoFar} ${dE.linesSoFar}",
-            s"((${getJSDateExprCode(sd.dataType, sdE.getCodeRef)} - (${dE.getCodeRef}))",
-            DateType)
-        }
+      case DateAdd(sd, d) => getDateArithmetic(sd, d, "+")
+      case DateSub(sd, d) => getDateArithmetic(sd, d, "-")
       case Hour(h) => getDateFieldsCode(h, "getHours()", IntegerType)
       case Minute(m) => getDateFieldsCode(m, "getMinutes()", IntegerType)
       case Second(s) => getDateFieldsCode(s, "getSeconds()", IntegerType)
@@ -152,12 +153,14 @@ private class JSExprCodeGen(dqb: DruidQueryBuilder, mulInParamsAllowed: Boolean)
   }
 
   private def genCastExprCode(e: Expression, dt: DataType): Option[JSExprCode] = {
-    for (fn <- genExprCode(e); cs <- genCastExprCode(fn.getCodeRef, fn.fnDT, dt)) yield
+    for (fn <- genExprCode(e);
+         cs <- genCastExprCode(fn.getCodeRef, fn.fnDT, dt,
+           fn.fnVar.nonEmpty)) yield
       JSExprCode(None, fn.linesSoFar, cs, dt)
   }
 
-  private def genCastExprCode(inExprStr: String, inDT: DataType,
-                              outDT: DataType): Option[String] = {
+  def genCastExprCode(inExprStr: String, inDT: DataType, outDT: DataType,
+                      inExprStrVName: Boolean = false): Option[String] = {
     if (TypeUtils.checkForSameTypeInputExpr(List(inDT, outDT), "JSCastFN arg checks").isFailure) {
       outDT match {
         case FloatType | DoubleType =>
@@ -174,10 +177,17 @@ private class JSExprCodeGen(dqb: DruidQueryBuilder, mulInParamsAllowed: Boolean)
               Some(s"Number($inExprStr)")
             case _ => None
           }
+        case BooleanType => Some(s"Boolean(${inExprStr})")
         case StringType =>
           inDT match {
             case FloatType | DoubleType | IntegerType |
-                 LongType | ShortType | DateType | TimestampType => Some(s"($inExprStr).toString()")
+                 LongType | ShortType | TimestampType => Some(s"($inExprStr).toString()")
+            case DateType => {
+              // This is a hack. TO_DATE is supposed to get only date pieces (except time)
+              // However Date.toISOString adds 00:00:00. Here we remove it
+              val v = if (inExprStrVName && toDateVar.contains(inExprStr)) ".slice(10)" else ""
+              Some(s"($inExprStr).toISOString()${v}")
+            }
             case _ => None
           }
         case TimestampType =>
@@ -219,5 +229,17 @@ private class JSExprCodeGen(dqb: DruidQueryBuilder, mulInParamsAllowed: Boolean)
 
   private def validInParams(inParam: String): Boolean = {
     if (!mulInParamsAllowed && ((inParams += inParam).size > 1)) false else true
+  }
+
+  private def getDateArithmetic(sd: Expression, d: Expression, op: String): Option[JSExprCode] = {
+    for (sdE <- genExprCode(sd); dE <- genExprCode(d)) yield {
+      val v1 = makeUniqueVarName
+      JSExprCode(Some(v1),
+        s"""
+           |${sdE.linesSoFar} ${dE.linesSoFar}
+           |var ${v1} = new Date(${sdE.getCodeRef});
+           |${v1}.setDate(${v1}.getDate() ${op} (${dE.getCodeRef}));
+      """.stripMargin, "", DateType)
+    }
   }
 }
