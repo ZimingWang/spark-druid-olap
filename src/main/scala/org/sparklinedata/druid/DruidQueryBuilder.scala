@@ -67,7 +67,7 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
     var oAttrName = nm
     do {
       uid += 1
-      oAttrName = nm + "$" + uid
+      oAttrName = nm + "_" + uid
     }
     while (drInfo.sourceToDruidMapping.contains(oAttrName))
     oAttrName

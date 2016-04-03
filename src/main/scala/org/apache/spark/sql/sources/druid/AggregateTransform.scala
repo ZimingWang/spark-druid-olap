@@ -85,7 +85,7 @@ trait AggregateTransform {
         for (fn <- JSCodeGenUtils.genJSFn(dqb, ge, false)) yield {
           val outDName = dqb.makeUniqueOutDimName(fn.inParams.last)
           dqb.dimension(new ExtractionDimensionSpec(fn.inParams.last, outDName,
-            new JavaScriptExtractionFunctionSpec("javascript", fn.jsFn, true))).
+            new JavaScriptExtractionFunctionSpec("javascript", fn.jsFn))).
             outputAttribute(outDName, ge, ge.dataType, StringType)
         }
       }
