@@ -24,13 +24,13 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
 
   test("gbexprtest1",
     "select sum(c_acctbal) as bal from orderLineItemPartSupplier group by " +
-      "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), 'T00:00:00.000Z')" +
+      "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), 'T00:00:00.000')" +
       " AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by bal",
     1,
     true, true)
   test("gbexprtest1B",
     "select sum(c_acctbal) as bal from orderLineItemPartSupplierBase group by " +
-      "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), 'T00:00:00.000Z')" +
+      "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), 'T00:00:00.000')" +
       " AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by bal",
     0,
     true, true)
@@ -38,31 +38,37 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
   test("gbexprtest2",
     "select o_orderdate, " +
       "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), 'T00:00:00.000Z') " +
-      "AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10))," +
+      "AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) x," +
       "sum(c_acctbal) as bal from orderLineItemPartSupplier group by " +
       "o_orderdate, (substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate)," +
-      " 'T00:00:00.000Z') AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by o_orderdate",
+      " 'T00:00:00.000Z') AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by o_orderdate, x, bal",
     1,
     true, true)
   test("gbexprtest2B",
     "select o_orderdate, " +
       "(substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate), 'T00:00:00.000Z') " +
-      "AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10))," +
+      "AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) x," +
       "sum(c_acctbal) as bal from orderLineItemPartSupplierBase group by " +
       "o_orderdate, (substr(CAST(Date_Add(TO_DATE(CAST(CONCAT(TO_DATE(o_orderdate)," +
-      " 'T00:00:00.000Z') AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by o_orderdate",
+      " 'T00:00:00.000Z') AS TIMESTAMP)), 5) AS TIMESTAMP), 0, 10)) order by o_orderdate, x, bal",
     0,
     true, true)
   test("gbexprtest3",
-    "select (DateDiff(cast(o_orderdate as date), cast('2015-07-21' as date))) as x " +
-      "from orderLineItemPartSupplier group by " +
-      "(DateDiff(cast(o_orderdate as date), cast('2015-07-21' as date))) order by x",
+    "select o_orderdate, " +
+      "(DateDiff(cast(o_orderdate as date), cast('2015-07-21 10:10:10 PST' as date))) as x " +
+      "from orderLineItemPartSupplier group by o_orderdate, " +
+      "cast('2015-07-21 10:10:10 PST' as date), " +
+      " (DateDiff(cast(o_orderdate as date), cast('2015-07-21 10:10:10 PST' as date))) " +
+      "order by o_orderdate, x",
     1,
     true, true)
   test("gbexprtest3B",
-    "select (DateDiff(cast(o_orderdate as date), cast('2015-07-21' as date))) as x " +
-      "from orderLineItemPartSupplierBase group by " +
-      "(DateDiff(cast(o_orderdate as date), cast('2015-07-21' as date))) order by x",
+    "select o_orderdate, " +
+      "(DateDiff(cast(o_orderdate as date), cast('2015-07-21 10:10:10 PST' as date))) as x " +
+      "from orderLineItemPartSupplierBase group by o_orderdate, " +
+      "cast('2015-07-21 10:10:10 PST' as date), " +
+      " (DateDiff(cast(o_orderdate as date), cast('2015-07-21 10:10:10 PST' as date))) " +
+      "order by o_orderdate, x",
     0,
     true, true)
   test("gbexprtest4",
@@ -114,7 +120,7 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
     0,
     true, true)
 
-  test("gbexprtest71A",
+  test("gbexprtest8",
     "SELECT   o_orderdate, Cast(Concat(Year(Cast(o_orderdate AS TIMESTAMP)), " +
       "(CASE WHEN Month(Cast(o_orderdate AS TIMESTAMP))<4 " +
       "THEN '-01' WHEN Month(Cast(o_orderdate AS TIMESTAMP))<7 " +
@@ -130,7 +136,7 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
       " order by o_orderdate, x ",
     1,
     true, true)
-  test("gbexprtest71B",
+  test("gbexprtest8B",
     "SELECT   o_orderdate, Cast(Concat(Year(Cast(o_orderdate AS TIMESTAMP)), " +
       "(CASE WHEN Month(Cast(o_orderdate AS TIMESTAMP))<4 " +
       "THEN '-01' WHEN Month(Cast(o_orderdate AS TIMESTAMP))<7 " +
@@ -147,15 +153,15 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
     0,
     true, true)
 
-  test("gbexprtest7C",
+  test("gbexprtest9",
     "select o_orderdate as x " +
       "from orderLineItemPartSupplier group by " +
       "o_orderdate, (unix_timestamp(Date_Add(cast(o_orderdate as date), 1))) " +
       "order by o_orderdate, x",
-    0,
+    1,
     true, true)
 
-  test("gbexprtest7D",
+  test("gbexprtest9B",
     "select o_orderdate as x " +
       "from orderLineItemPartSupplierBase group by " +
       "o_orderdate, (unix_timestamp(Date_Add(cast(o_orderdate as date), 1)))  " +
@@ -163,14 +169,35 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
     0,
     true, true)
 
-  test("gbexprtest8",
+
+  test("gbexprtest10",
+    " SELECT CAST((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3 + 1 AS BIGINT) " +
+      "AS `qr_row_hr_ok`, YEAR(CAST(o_orderdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
+      "FROM ( select * from orderLineItemPartSupplier) custom_sql_query " +
+      "GROUP BY  " +
+      "CAST((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3 + 1 AS BIGINT), " +
+      "YEAR(CAST(o_orderdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
+    1,
+    true, true)
+
+  test("gbexprtest10B",
+    " SELECT CAST((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3 + 1 AS BIGINT) " +
+      "AS `qr_row_hr_ok`, YEAR(CAST(o_orderdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
+      "FROM ( select * from orderLineItemPartSupplierBase) custom_sql_query " +
+      "GROUP BY  " +
+      "CAST((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3 + 1 AS BIGINT), " +
+      "YEAR(CAST(o_orderdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
+    0,
+    true, true)
+
+  test("gbexprtest11",
     "select o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1)))) as x " +
       "from orderLineItemPartSupplier group by " +
       "o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1))))  " +
       "order by o_orderdate, x",
     1,
     true, true)
-  test("gbexprtest8B",
+  test("gbexprtest11B",
     "select o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1)))) as x " +
       "from orderLineItemPartSupplierBase group by " +
       "o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1))))  " +
