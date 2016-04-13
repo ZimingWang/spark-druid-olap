@@ -115,15 +115,16 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression,
              if pos.isInstanceOf[Literal]; lenL <- genExprCode(len)
              if len.isInstanceOf[Literal]) yield
           JSExpr(None, s"${strcode.linesSoFar} ${posL.linesSoFar}",
-            s"(${strcode.getRef}).substring(${posL.getRef}, ${lenL.getRef})",
+            s"(${strcode.getRef}).substr(${posL.getRef}, ${lenL.getRef})",
             StringType)
       case Coalesce(le) => {
         val l = le.flatMap(e => genExprCode(e))
         if (le.size == l.size) {
-          Some(l.foldLeft(new JSExpr("", StringType))((a, j) =>
-            JSExpr(a.fnVar.filter(_.nonEmpty).orElse(j.fnVar),
+          val cl = l.foldLeft(new JSExpr("", StringType))((a, j) =>
+            JSExpr(None,
               a.linesSoFar + j.linesSoFar,
-              if (a.getRef.isEmpty) "" else "||" + s"((${j.getRef}) != null)", j.fnDT)))
+              if (a.getRef.isEmpty) s"(${j.getRef})" else s"${a.getRef} || (${j.getRef})", j.fnDT))
+          Some(JSExpr(None, cl.linesSoFar, s"(${cl.getRef})", cl.fnDT))
         } else {
           None
         }

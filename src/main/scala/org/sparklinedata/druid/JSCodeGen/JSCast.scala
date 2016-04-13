@@ -24,7 +24,8 @@ import org.sparklinedata.druid.JSCodeGen.JSCodeGenerator._
 case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
   private[JSCodeGen] val castCode: Option[JSExpr] =
     to match {
-      case _ if (to == from.fnDT || from.fnDT == NullType) => Some(from)
+      case _ if (to == from.fnDT || from.fnDT == NullType) =>
+        Some(new JSExpr(from.getRef, StringType))
       case BooleanType => castToBooleanCode
       case ShortType => castToShortCode
       case IntegerType => castToNumericCode(IntegerType)
@@ -34,6 +35,7 @@ case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
       case StringType => castToStringCode
       case DateType => castToDateCode
       case TimestampType => castToTimestampCode
+      case _ => None
     }
 
   private[this] def castToBooleanCode: Option[JSExpr] = from.fnDT match {
@@ -44,6 +46,7 @@ case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
       Some(new JSExpr(s"null", BooleanType))
     case TimestampType =>
       Some(new JSExpr(s"Boolean(${from.getRef}.getMillis())", BooleanType))
+    case _ => None
   }
 
 
@@ -60,23 +63,24 @@ case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
         Some(new JSExpr(s"null", outDt))
       case TimestampType =>
         Some(new JSExpr(s"Number(${dtToIntegerCode(from.getRef)})", outDt))
+      case _ => None
     }
 
   // TODO: enable Cast To Short after support for Decimal, Short, TimeStamp Types
   private[this] def castToShortCode: Option[JSExpr] = from.fnDT match {
     case StringType | BooleanType | DateType => castToNumericCode(ShortType)
+    case _ => None
   }
 
-  private[this] def castToStringCode: Option[JSExpr] = {
-    from.fnDT match {
+  private[this] def castToStringCode: Option[JSExpr] = from.fnDT match {
       case ShortType | IntegerType | LongType | FloatType | DoubleType | DecimalType() =>
         Some(new JSExpr(s"${from.getRef}.toString()", StringType))
       case DateType =>
         Some(new JSExpr(dateToStrCode(from.getRef), StringType))
       case TimestampType =>
         Some(new JSExpr(dtToStrCode(from.getRef), StringType))
+      case _ => None
     }
-  }
 
   // TODO: Handle parsing failure as in Spark
   private[this] def castToDateCode: Option[JSExpr] = from.fnDT match {
@@ -84,6 +88,7 @@ case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
       Some(new JSExpr(stringToDateCode(from.getRef, ctx.dateTimeCtx), DateType))
     case TimestampType =>
       Some(new JSExpr(dtToDateCode(from.getRef), DateType))
+    case _ => None
   }
 
   // TODO: Support for DecimalType. Handle Double/Float isNaN/isInfinite
@@ -103,5 +108,6 @@ case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
       Some(new JSExpr(longToISODTCode(from.getRef, ctx.dateTimeCtx), TimestampType))
     case DateType => Some(new JSExpr(localDateToDTCode(from.getRef, ctx.dateTimeCtx),
       TimestampType))
+    case _ => None
   }
 }

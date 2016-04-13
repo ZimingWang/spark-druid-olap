@@ -191,16 +191,183 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
     true, true)
 
   test("gbexprtest11",
+    " SELECT CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT) " +
+      "AS `qr_row_hr_ok`, YEAR(CAST(o_orderdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
+      "FROM ( select * from orderLineItemPartSupplier) custom_sql_query " +
+      "GROUP BY  " +
+      "CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT), " +
+      "YEAR(CAST(o_orderdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
+    1,
+    true, true)
+  test("gbexprtest11B",
+    " SELECT CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT) " +
+      "AS `qr_row_hr_ok`, YEAR(CAST(o_orderdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
+      "FROM ( select * from orderLineItemPartSupplierBase) custom_sql_query " +
+      "GROUP BY  " +
+      "CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT), " +
+      "YEAR(CAST(o_orderdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
+    1,
+    true, true)
+
+  test("gbexprtest12",
     "select o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1)))) as x " +
       "from orderLineItemPartSupplier group by " +
       "o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1))))  " +
       "order by o_orderdate, x",
     1,
     true, true)
-  test("gbexprtest11B",
+  test("gbexprtest12B",
     "select o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1)))) as x " +
       "from orderLineItemPartSupplierBase group by " +
       "o_orderdate, (from_unixtime(second(Date_Add(cast(o_orderdate as date), 1))))  " +
+      "order by o_orderdate, x",
+    0,
+    true, true)
+
+  test("gbexprtest13",
+    "select o_orderdate, " +
+      "datediff(" +
+      "date_add(to_date(cast(o_orderdate as timestamp)), (year(cast(o_orderdate as date))%100)), " +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), quarter(cast(o_orderdate as date))*2)" +
+      ") as c1, " +
+      "datediff( " +
+      "date_add(to_date(cast(o_orderdate as timestamp)), month(cast(o_orderdate as date))), " +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), weekofyear(cast(o_orderdate as date)))" +
+      ")as c2, " +
+      "datediff( " +
+      "date_add(to_date(cast(o_orderdate as timestamp)), day(cast(o_orderdate as date))), " +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), hour(cast(o_orderdate as date))+10))" +
+      "as c3, " +
+      "datediff( " +
+      "date_add(to_date(cast(o_orderdate as timestamp)), minute(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), second(cast(o_orderdate as date))+10))" +
+      " as c4 " +
+      "from orderLineItemPartSupplier group by " +
+      "o_orderdate, " +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "year(cast(o_orderdate as date))%100)," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), quarter(cast(o_orderdate as date))*2))," +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "month(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), weekofyear(cast(o_orderdate as date))))," +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "day(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), hour(cast(o_orderdate as date))+10))," +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "minute(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), second(cast(o_orderdate as date))+10)) " +
+      "order by o_orderdate, c1, c2, c3, c4",
+    1,
+    true, true)
+
+  test("gbexprtest13B",
+    "select o_orderdate, " +
+      "datediff(" +
+      "date_add(to_date(cast(o_orderdate as timestamp)), (year(cast(o_orderdate as date))%100)), " +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), quarter(cast(o_orderdate as date))*2)" +
+      ") as c1, " +
+      "datediff( " +
+      "date_add(to_date(cast(o_orderdate as timestamp)), month(cast(o_orderdate as date))), " +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), weekofyear(cast(o_orderdate as date)))" +
+      ")as c2, " +
+      "datediff( " +
+      "date_add(to_date(cast(o_orderdate as timestamp)), day(cast(o_orderdate as date))), " +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), hour(cast(o_orderdate as date))+10))" +
+      "as c3, " +
+      "datediff( " +
+      "date_add(to_date(cast(o_orderdate as timestamp)), minute(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), second(cast(o_orderdate as date))+10))" +
+      " as c4 " +
+      "from orderLineItemPartSupplierBase group by " +
+      "o_orderdate, " +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "year(cast(o_orderdate as date))%100)," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), quarter(cast(o_orderdate as date))*2))," +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "month(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), weekofyear(cast(o_orderdate as date))))," +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "day(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), hour(cast(o_orderdate as date))+10))," +
+      "datediff(date_add(to_date(cast(o_orderdate as timestamp)), " +
+      "minute(cast(o_orderdate as date)))," +
+      "date_sub(to_date(cast(o_orderdate as timestamp)), second(cast(o_orderdate as date))+10)) " +
+      "order by o_orderdate, c1, c2, c3, c4",
+    0,
+    true, true)
+
+  test("gbexprtest14",
+    "select o_orderdate, " +
+      "date_add(cast(upper(concat(concat(substr(cast(cast(o_orderdate as timestamp) as string)," +
+      " 0, 10), 't'), substr(cast(cast(o_orderdate as timestamp) as string), 11, 8))) as date)," +
+      " 20) as x " +
+      "from orderLineItemPartSupplier group by " +
+      "o_orderdate, " +
+      "date_add(cast(upper(concat(concat(substr(cast(cast(o_orderdate as timestamp) as string)," +
+      " 0, 10), 't'), substr(cast(cast(o_orderdate as timestamp) as string), 11, 8))) as date)," +
+      " 20)" +
+      "order by o_orderdate, x",
+    1,
+    true, true)
+
+  test("gbexprtest14B",
+    "select o_orderdate, " +
+      "date_add(cast(upper(concat(concat(substr(cast(cast(o_orderdate as timestamp) as string)," +
+      " 0, 10), 't'), substr(cast(cast(o_orderdate as timestamp) as string), 11, 8))) as date)," +
+      " 20) as x " +
+      "from orderLineItemPartSupplierBase group by " +
+      "o_orderdate, " +
+      "date_add(cast(upper(concat(concat(substr(cast(cast(o_orderdate as timestamp) as string)," +
+      " 0, 10), 't'), substr(cast(cast(o_orderdate as timestamp) as string), 11, 8))) as date)," +
+      " 20)" +
+      "order by o_orderdate, x",
+    0,
+    true, true)
+
+  test("gbexprtest15",
+    "select o_orderdate, " +
+      "Coalesce((CASE WHEN Month(Cast(o_orderdate AS date)) > 0  and " +
+      "Month(Cast(o_orderdate AS date)) < 4 THEN \"Q1\" else null END), " +
+      " (CASE WHEN Month(Cast(o_orderdate AS date)) >= 4  and Month(Cast(o_orderdate AS date))" +
+      " <= 6  THEN \"Q2\" else null END), (CASE WHEN Month(Cast(o_orderdate AS date)) > 6" +
+      "  and Month(Cast(o_orderdate AS date)) <= 8  THEN \"Q3\" else null END)," +
+      " (CASE WHEN Month(Cast(o_orderdate AS date)) <> 12    THEN \"Not Dec\" else null END)," +
+      " (CASE WHEN Month(Cast(o_orderdate AS date)) = 12    THEN \"Dec\" else null END))as x " +
+      "from orderLineItemPartSupplier group by " +
+      "o_orderdate, " +
+      "Coalesce((CASE WHEN Month(Cast(o_orderdate AS date)) > 0  and " +
+      "Month(Cast(o_orderdate AS date)) < 4 THEN \"Q1\" else null END),  " +
+      "(CASE WHEN Month(Cast(o_orderdate AS date)) >= 4  and " +
+      "Month(Cast(o_orderdate AS date)) <= 6  THEN \"Q2\" else null END), " +
+      "(CASE WHEN Month(Cast(o_orderdate AS date)) > 6  and " +
+      "Month(Cast(o_orderdate AS date)) <= 8  THEN \"Q3\" else null END), " +
+      "(CASE WHEN Month(Cast(o_orderdate AS date)) <> 12    " +
+      "THEN \"Not Dec\" else null END), (CASE WHEN Month(Cast(o_orderdate AS date)) = 12    " +
+      "THEN \"Dec\" else null END))" +
+      "order by o_orderdate, x",
+    1,
+    true, true)
+
+  test("gbexprtest15B",
+    "select o_orderdate, " +
+      "Coalesce((CASE WHEN Month(Cast(o_orderdate AS date)) > 0  and " +
+      "Month(Cast(o_orderdate AS date)) < 4 THEN \"Q1\" else null END), " +
+      " (CASE WHEN Month(Cast(o_orderdate AS date)) >= 4  and Month(Cast(o_orderdate AS date))" +
+      " <= 6  THEN \"Q2\" else null END), (CASE WHEN Month(Cast(o_orderdate AS date)) > 6" +
+      "  and Month(Cast(o_orderdate AS date)) <= 8  THEN \"Q3\" else null END)," +
+      " (CASE WHEN Month(Cast(o_orderdate AS date)) <> 12    THEN \"Not Dec\" else null END)," +
+      " (CASE WHEN Month(Cast(o_orderdate AS date)) = 12    THEN \"Dec\" else null END))as x " +
+      "from orderLineItemPartSupplierBase group by " +
+      "o_orderdate, " +
+      "Coalesce((CASE WHEN Month(Cast(o_orderdate AS date)) > 0  and " +
+      "Month(Cast(o_orderdate AS date)) < 4 THEN \"Q1\" else null END),  " +
+      "(CASE WHEN Month(Cast(o_orderdate AS date)) >= 4  and " +
+      "Month(Cast(o_orderdate AS date)) <= 6  THEN \"Q2\" else null END), " +
+      "(CASE WHEN Month(Cast(o_orderdate AS date)) > 6  and " +
+      "Month(Cast(o_orderdate AS date)) <= 8  THEN \"Q3\" else null END), " +
+      "(CASE WHEN Month(Cast(o_orderdate AS date)) <> 12    " +
+      "THEN \"Not Dec\" else null END), (CASE WHEN Month(Cast(o_orderdate AS date)) = 12    " +
+      "THEN \"Dec\" else null END))" +
       "order by o_orderdate, x",
     0,
     true, true)
