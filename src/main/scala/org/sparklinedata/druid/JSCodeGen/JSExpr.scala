@@ -15,15 +15,17 @@
  * limitations under the License.
  */
 
-package org.sparklinedata.druid.JSCodeGen
+package org.sparklinedata.druid.jscodegen
 
 import org.apache.spark.sql.types.DataType
 
-private[JSCodeGen] case class JSExpr(val fnVar: Option[String], val linesSoFar: String,
-                                     val curLine: String, val fnDT: DataType) {
-  private[JSCodeGen] def this(curLine: String, fnDT: DataType) = this(None, "", curLine, fnDT)
+private[jscodegen] case class JSExpr(val fnVar: Option[String], val linesSoFar: String,
+                                     val curLine: String, val fnDT: DataType,
+                                     val timeDim: Boolean = false) {
+  private[jscodegen] def this(curLine: String, fnDT: DataType, timeDim: Boolean = false) =
+    this(None, "", curLine, fnDT, timeDim)
 
-  private[JSCodeGen] def getRef: String = {
+  private[jscodegen] def getRef: String = {
     if (fnVar.isDefined) fnVar.get else curLine
   }
 }

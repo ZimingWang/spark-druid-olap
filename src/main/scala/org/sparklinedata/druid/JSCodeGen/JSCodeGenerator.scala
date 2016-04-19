@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.sparklinedata.druid.JSCodeGen
+package org.sparklinedata.druid.jscodegen
 
 import org.apache.spark.Logging
 import org.apache.spark.sql.catalyst.expressions._
@@ -24,7 +24,7 @@ import org.apache.spark.sql.types._
 import org.sparklinedata.druid
 import org.sparklinedata.druid.DruidQueryBuilder
 import org.sparklinedata.druid.metadata._
-import org.sparklinedata.druid.JSCodeGen.JSDateTimeCtx._
+import org.sparklinedata.druid.jscodegen.JSDateTimeCtx._
 
 import scala.collection.mutable
 import scala.language.reflectiveCalls
@@ -33,12 +33,12 @@ import scala.language.reflectiveCalls
 case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression,
                            mulInParamsAllowed: Boolean, tz_id: String) extends Logging {
   private[this] var uid: Int = 0
-  private[JSCodeGen] def makeUniqueVarName: String = {
+  private[jscodegen] def makeUniqueVarName: String = {
     uid += 1
     "v" + uid
   }
   private[this] var inParams: mutable.HashSet[String] = mutable.HashSet()
-  private[JSCodeGen] val dateTimeCtx = new JSDateTimeCtx(tz_id, this)
+  private[jscodegen] val dateTimeCtx = new JSDateTimeCtx(tz_id, this)
 
   def fnCode: Option[String] =
     for (fnb <- genExprCode(e) if inParams.nonEmpty;
@@ -55,7 +55,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression,
   def fnParams = inParams.toList
 
 
-  private[JSCodeGen] def SPIntegralNumeric(t: DataType): Boolean = t match {
+  private[jscodegen] def SPIntegralNumeric(t: DataType): Boolean = t match {
     case ShortType | IntegerType | LongType => true
     case _ => false
   }
@@ -63,11 +63,11 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression,
   private[this] def genExprCode(e: Expression): Option[JSExpr] = {
     e match {
       case AttributeReference(nm, dT, _, _) =>
-        for (dD <- dqb.druidColumn(nm)
+        for (dD <- dqb.druidColumn(nm);
+             v = if (dD.isInstanceOf[DruidTimeDimension]) dqb.druidColumn(nm).get.name else nm;
              if (dD.isInstanceOf[DruidDimension] || dD.isInstanceOf[DruidTimeDimension]) &&
-               validInParams(nm)) yield {
-          val v = if (dD.isInstanceOf[DruidTimeDimension]) dqb.druidColumn(nm).get.name else nm
-          new JSExpr(v, e.dataType)
+               validInParams(v)) yield {
+          new JSExpr(v, e.dataType, dD.isInstanceOf[DruidTimeDimension])
         }
 
       case Literal(value, dataType) => {

@@ -191,22 +191,22 @@ class CodeGenTest extends BaseTest with BeforeAndAfterAll with Logging {
     true, true)
 
   test("gbexprtest11",
-    " SELECT CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT) " +
-      "AS `qr_row_hr_ok`, YEAR(CAST(o_orderdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
+    " SELECT CAST(((MONTH(CAST(l_shipdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT) " +
+      "AS `qr_row_hr_ok`, YEAR(CAST(l_shipdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
       "FROM ( select * from orderLineItemPartSupplier) custom_sql_query " +
       "GROUP BY  " +
-      "CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT), " +
-      "YEAR(CAST(o_orderdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
+      "CAST(((MONTH(CAST(l_shipdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT), " +
+      "YEAR(CAST(l_shipdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
     1,
     true, true)
   test("gbexprtest11B",
-    " SELECT CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT) " +
-      "AS `qr_row_hr_ok`, YEAR(CAST(o_orderdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
+    " SELECT CAST(((MONTH(CAST(l_shipdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT) " +
+      "AS `qr_row_hr_ok`, YEAR(CAST(l_shipdate AS TIMESTAMP)) AS `yr_row_hr_ok` " +
       "FROM ( select * from orderLineItemPartSupplierBase) custom_sql_query " +
       "GROUP BY  " +
-      "CAST(((MONTH(CAST(o_orderdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT), " +
-      "YEAR(CAST(o_orderdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
-    1,
+      "CAST(((MONTH(CAST(l_shipdate AS TIMESTAMP)) - 1) / 3) * 2 AS BIGINT), " +
+      "YEAR(CAST(l_shipdate AS TIMESTAMP)) order by qr_row_hr_ok, yr_row_hr_ok",
+    0,
     true, true)
 
   test("gbexprtest12",

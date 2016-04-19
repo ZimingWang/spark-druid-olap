@@ -22,7 +22,7 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Expand, Project, Aggregate}
 import org.apache.spark.sql.types.{DoubleType, LongType, IntegerType, StringType}
-import org.sparklinedata.druid.JSCodeGen.JSCodeGenerator
+import org.sparklinedata.druid.jscodegen.JSCodeGenerator
 import org.sparklinedata.druid.metadata._
 import org.sparklinedata.druid._
 

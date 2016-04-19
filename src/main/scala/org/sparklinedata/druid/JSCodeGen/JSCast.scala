@@ -15,14 +15,14 @@
  * limitations under the License.
  */
 
-package org.sparklinedata.druid.JSCodeGen
+package org.sparklinedata.druid.jscodegen
 
 import org.apache.spark.sql.types._
-import org.sparklinedata.druid.JSCodeGen.JSDateTimeCtx._
-import org.sparklinedata.druid.JSCodeGen.JSCodeGenerator._
+import org.sparklinedata.druid.jscodegen.JSDateTimeCtx._
+import org.sparklinedata.druid.jscodegen.JSCodeGenerator._
 
 case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
-  private[JSCodeGen] val castCode: Option[JSExpr] =
+  private[jscodegen] val castCode: Option[JSExpr] =
     to match {
       case _ if (to == from.fnDT || from.fnDT == NullType) =>
         Some(new JSExpr(from.getRef, StringType))
@@ -94,8 +94,8 @@ case class JSCast(from: JSExpr, to: DataType, ctx: JSCodeGenerator) {
   // TODO: Support for DecimalType. Handle Double/Float isNaN/isInfinite
   private[this] def castToTimestampCode: Option[JSExpr] = from.fnDT match {
     case StringType =>
-      Some(new JSExpr(stringToISODTCode(from.getRef, ctx.dateTimeCtx),
-        TimestampType))
+      Some(new JSExpr(if (from.timeDim) {longToISODTCode(from.getRef, ctx.dateTimeCtx)}
+      else {stringToISODTCode(from.getRef, ctx.dateTimeCtx)}, TimestampType))
     case BooleanType =>
       Some(new JSExpr(stringToISODTCode
       (s"((${from.getRef}) == true ? T00:00:01Z : T00:00:00Z)", ctx.dateTimeCtx),
