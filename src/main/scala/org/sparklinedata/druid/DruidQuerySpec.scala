@@ -495,3 +495,20 @@ case class TopNQuerySpec(
 
   def setIntervals(ins : List[Interval]) = this.copy(intervals = ins.map(_.toString))
 }
+
+case class PagingSpec(pagingIdentifiers : Map[String, Int],
+                      threshold : Int)
+
+case class SelectSpec(queryType: String,
+                      dataSource: String,
+                      dimensions: List[String],
+                      metrics: List[String],
+                      filter: Option[FilterSpec],
+                      pagingSpec : PagingSpec,
+                      descending : Boolean = false,
+                      granularity : String = "all") {
+
+  def withPagingIdentifier(ps :  Map[String, Int]) = {
+    copy(pagingSpec = pagingSpec.copy(pagingIdentifiers = ps))
+  }
+}

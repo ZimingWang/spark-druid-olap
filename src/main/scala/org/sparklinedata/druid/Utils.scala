@@ -22,7 +22,7 @@ import org.json4s.ext.EnumNameSerializer
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 import org.json4s.{Extraction, ShortTypeHints}
-import org.sparklinedata.druid.client.QueryResultRowSerializer
+import org.sparklinedata.druid.client.{QueryResultRowSerializer, SelectResultRowSerializer}
 import org.sparklinedata.druid.metadata._
 
 import scala.util.Random
@@ -76,13 +76,16 @@ object Utils extends Logging {
         classOf[EqualityCondition],
         classOf[LookUpMap],
         classOf[InExtractionFnSpec],
-        classOf[ExtractionFilterSpec]
+        classOf[ExtractionFilterSpec],
+        classOf[ExtractionFilterSpec],
+        classOf[PagingSpec]
       )
     )
   ) +
     new EnumNameSerializer(FunctionalDependencyType) +
     new EnumNameSerializer(DruidDataType) +
-    new QueryResultRowSerializer ++
+    new QueryResultRowSerializer +
+    new SelectResultRowSerializer ++
     org.json4s.ext.JodaTimeSerializers.all
 
   def logQuery(dq: DruidQuery): Unit = {

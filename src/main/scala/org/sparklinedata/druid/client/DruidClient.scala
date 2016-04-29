@@ -17,6 +17,8 @@
 
 package org.sparklinedata.druid.client
 
+import java.io.InputStream
+
 import org.apache.commons.io.IOUtils
 import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.http.client.methods._
@@ -26,14 +28,12 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
 import org.apache.spark.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.sql.sources.druid.DruidQueryResultIterator
+import org.apache.spark.sql.sources.druid.{DruidQueryResultIterator, DruidSelectResultIterator}
 import org.joda.time.{DateTime, Interval}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.sparklinedata.druid.{DruidDataSourceException, QuerySpec}
+import org.sparklinedata.druid._
 import org.sparklinedata.druid.metadata.{DependencyGraph, DruidRelationInfo, _}
-import org.sparklinedata.druid.Utils
-import org.sparklinedata.druid.CloseableIterator
 
 import scala.collection.mutable.{Map => MMap}
 import scala.util.Try
@@ -286,6 +286,42 @@ class DruidQueryServerClient(host : String, port : Int)
   @throws(classOf[DruidDataSourceException])
   def executeQueryAsStream(qry : QuerySpec) : CloseableIterator[QueryResultRow] = {
     executeQueryAsStream(url, qry)
+  }
+
+  @throws(classOf[DruidDataSourceException])
+  def executeSelectAsStream(selectQry : SelectSpec) : (CloseableHttpResponse, () => Unit) = {
+    val payload = compact(render(Extraction.decompose(selectQry)))
+    val reqType = postRequest _
+    val reqHeaders: Map[String, String] = null
+    var resp: CloseableHttpResponse = null
+
+    try {
+      val req: CloseableHttpClient = httpClient
+      val request: HttpRequestBase = reqType(url)
+      if (payload != null && request.isInstanceOf[HttpEntityEnclosingRequestBase]) {
+        val input: StringEntity = new StringEntity(payload, ContentType.APPLICATION_JSON)
+        request.asInstanceOf[HttpEntityEnclosingRequestBase].setEntity(input)
+      }
+      addHeaders(request, reqHeaders)
+      resp = req.execute(request)
+      val status = resp.getStatusLine().getStatusCode();
+      if (status >= 200 && status < 300) {
+        (resp, {() => release(resp)})
+      } else {
+        throw new DruidDataSourceException(s"Unexpected response status: ${resp.getStatusLine}")
+      }
+    } catch {
+      case dE: DruidDataSourceException => throw dE
+      case x : Throwable =>
+        throw new DruidDataSourceException("Failed in communication with Druid", x)
+    }
+  }
+
+  @throws(classOf[DruidDataSourceException])
+  def executeSelectAsStreamWithResult(selectQry : SelectSpec) :
+  CloseableIterator[SelectResultRow] = {
+    val (r, onDone) = executeSelectAsStream(selectQry)
+    DruidSelectResultIterator(r.getEntity.getContent, selectQry, this, onDone)
   }
 }
 

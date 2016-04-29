@@ -19,10 +19,10 @@ package org.sparklinedata.druid
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute, ExprId}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, ExprId}
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.sources.{TableScan, BaseRelation}
-import org.apache.spark.sql.types.{StructField, StructType, DataType}
+import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
+import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.joda.time.Interval
 import org.sparklinedata.druid.metadata.{DruidDataType, DruidRelationInfo}
 
@@ -92,7 +92,7 @@ case class DruidQuery(q : QuerySpec,
 case class DruidRelation (val info : DruidRelationInfo,
                                        val dQuery : Option[DruidQuery])(
   @transient val sqlContext: SQLContext)
-  extends BaseRelation with TableScan {
+  extends BaseRelation with PrunedFilteredScan {
   /*
    pass in
    - connection info to druid (host,port, dataSource, params)
@@ -111,6 +111,9 @@ case class DruidRelation (val info : DruidRelationInfo,
       info.sourceDF(sqlContext).queryExecution.toRdd
     )
 
-  override def buildScan(): RDD[Row] =
+  def buildScan(): RDD[Row] =
     buildInternalScan.asInstanceOf[RDD[Row]]
+
+  override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] =
+    buildScan()
 }

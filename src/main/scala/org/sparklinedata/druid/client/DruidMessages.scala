@@ -59,3 +59,31 @@ class QueryResultRowSerializer extends CustomSerializer[QueryResultRow](format =
       throw new RuntimeException("QueryRow serialization not supported.")
   }
   ))
+
+case class SelectResultContainer(timestamp : String,
+                                 result :SelectResult
+                                )
+
+case class SelectResult(pagingIdentifiers : Map[String, Int],
+                        events : List[SelectResultRow]
+                       )
+
+case class SelectResultRow(segmentId : String,
+                           offset : BigInt,
+                          event : Map[String, Any])
+
+class SelectResultRowSerializer extends CustomSerializer[SelectResultRow](format => (
+  {
+    case JObject(
+    JField("segmentId", JString(v)) ::
+      JField("offset", JInt(t)) ::
+      JField("event", JObject(obj)) :: Nil
+    ) =>
+      val m : Map[String, Any] = obj.map(t => (t._1, t._2.values)).toMap
+      SelectResultRow(v, t, m)
+  },
+  {
+    case x: SelectResultRow =>
+      throw new RuntimeException("SelectResultRow serialization not supported.")
+  }
+  ))
