@@ -25,7 +25,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan, TableScan}
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.joda.time.Interval
-import org.sparklinedata.druid.metadata.{DruidDataType, DruidRelationInfo}
+import org.sparklinedata.druid.metadata.{DruidDataType, DruidRelationInfo, NonAggregateQueryHandling}
 
 case class DruidOperatorAttribute(exprId : ExprId, name : String, dataType : DataType)
 
@@ -128,16 +128,15 @@ case class DruidRelation (val info : DruidRelationInfo,
   override def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
 
     /*
-    - if dQuery is set call buildScan
-    - construct a DSBldr
-    - transform by applying reqCOls and filters
-    - if at the end we have a DSB then return a DruidSelectRDD
-    - else buildScan
+       if dQuery is set or nonAgg pushing is turned off call buildScan
      */
-
-    dQuery.map { dq =>
+    if ( dQuery.isDefined ||
+      (info.options.nonAggQueryHandling == NonAggregateQueryHandling.PUSH_NONE) ||
+      (info.options.nonAggQueryHandling == NonAggregateQueryHandling.PUSH_FILTERS &&
+        filters.size == 0)
+    ) {
       buildScan()
-    }.getOrElse {
+    } else {
       val selRDD = DataSourceFilterTransform(
         DruidSelectQueryBuilder(info),
         requiredColumns.filter(_ != info.timeDimensionCol),

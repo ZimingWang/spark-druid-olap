@@ -23,6 +23,12 @@ import org.apache.spark.sql.types._
 
 import scala.collection.mutable.{Map => MMap}
 
+object NonAggregateQueryHandling extends Enumeration {
+  val PUSH_FILTERS = Value("push_filters")
+  val PUSH_PROJECT_AND_FILTERS = Value("push_project_and_filters")
+  val PUSH_NONE = Value("push_none")
+
+}
 case class DruidRelationInfo(val host : String,
                          val sourceDFName : String,
                             val timeDimensionCol : String,
@@ -47,7 +53,8 @@ case class DruidRelationOptions(val maxCardinality : Long,
                                 zkEnableCompression : Boolean,
                                 zkDruidPath : String,
                                 queryHistoricalServers : Boolean,
-                                zkQualifyDiscoveryNames : Boolean)
+                                zkQualifyDiscoveryNames : Boolean,
+                                nonAggQueryHandling : NonAggregateQueryHandling.Value)
 
 private[druid] object MappingBuilder extends Logging {
 

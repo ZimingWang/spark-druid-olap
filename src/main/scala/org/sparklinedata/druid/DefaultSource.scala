@@ -22,7 +22,7 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources.{BaseRelation, RelationProvider}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.sparklinedata.druid.metadata._
+import org.sparklinedata.druid.metadata.{NonAggregateQueryHandling, _}
 
 class DefaultSource extends RelationProvider with Logging {
 
@@ -115,6 +115,12 @@ class DefaultSource extends RelationProvider with Logging {
       parameters.get(ZK_QUALIFY_DISCOVERY_NAMES).
         getOrElse(DEFAULT_ZK_QUALIFY_DISCOVERY_NAMES).toBoolean
 
+    val nonAggregateQueryHandling :
+    NonAggregateQueryHandling.Value = NonAggregateQueryHandling.withName(
+      parameters.get(NON_AGG_QUERY_HANDLING).
+      getOrElse(DEFAULT_NON_AGG_QUERY_HANDLING)
+    )
+
     val options = DruidRelationOptions(
       maxCardinality,
       cardinalityPerDruidQuery,
@@ -125,7 +131,8 @@ class DefaultSource extends RelationProvider with Logging {
       zkEnableCompression,
       zkDruidPath,
       queryHistorical,
-      zkQualifyDiscoveryNames
+      zkQualifyDiscoveryNames,
+      nonAggregateQueryHandling
     )
 
 
@@ -234,4 +241,7 @@ object DefaultSource {
 
   val ZK_QUALIFY_DISCOVERY_NAMES = "zkQualifyDiscoveryNames"
   val DEFAULT_ZK_QUALIFY_DISCOVERY_NAMES = "false"
+
+  val NON_AGG_QUERY_HANDLING = "nonAggregateQueryHandling"
+  val DEFAULT_NON_AGG_QUERY_HANDLING = NonAggregateQueryHandling.PUSH_NONE.toString
 }
