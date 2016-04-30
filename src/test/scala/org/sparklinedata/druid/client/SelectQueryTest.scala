@@ -142,8 +142,8 @@ class SelectQueryTest extends BaseTest with BeforeAndAfterAll with Logging {
     """
          select l_returnflag as f, l_linestatus as s, l_shipdate, s_region, s_nation, c_nation
          from orderLineItemPartSupplier_select
-      where l_shipdate >  cast( '1993-05-19 00:00:00' as timestamp)
-            and l_shipdate <  '1993-05-20 00:10:01'
+      where l_shipdate >  cast( '1993-05-21T00:00:00.000Z' as date)
+            and l_shipdate <  cast( '1993-05-31T00:10:01.000Z' as date)
     """
   },
     1, true, true
