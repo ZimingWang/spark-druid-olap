@@ -69,7 +69,7 @@ case class SelectResult(pagingIdentifiers : Map[String, Int],
                        )
 
 case class SelectResultRow(segmentId : String,
-                           offset : BigInt,
+                           offset : Int,
                           event : Map[String, Any])
 
 class SelectResultRowSerializer extends CustomSerializer[SelectResultRow](format => (
@@ -80,7 +80,7 @@ class SelectResultRowSerializer extends CustomSerializer[SelectResultRow](format
       JField("event", JObject(obj)) :: Nil
     ) =>
       val m : Map[String, Any] = obj.map(t => (t._1, t._2.values)).toMap
-      SelectResultRow(v, t, m)
+      SelectResultRow(v, t.toInt, m)
   },
   {
     case x: SelectResultRow =>

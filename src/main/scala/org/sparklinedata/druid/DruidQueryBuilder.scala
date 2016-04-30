@@ -24,6 +24,22 @@ import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.types.DataType
 import org.sparklinedata.druid.metadata.{DruidColumn, DruidRelationInfo}
 
+trait QueryMetaData[T <: QueryMetaData[_]]  extends Product {
+  def drInfo : DruidRelationInfo
+  def queryIntervals: QueryIntervals
+  def druidColumn(name: String): Option[DruidColumn]
+  def curId: AtomicLong
+  def nextAlias: String = s"alias${curId.getAndDecrement()}"
+  def nextAlias(cn: String): String = {
+    var oAttrName = cn + nextAlias
+    while (drInfo.sourceToDruidMapping.contains(oAttrName)) {
+      oAttrName = cn + nextAlias
+    }
+    oAttrName
+  }
+  def interval(iC: IntervalCondition): Option[T]
+}
+
 /**
  *
  * @param drInfo
@@ -63,7 +79,8 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
                              avgExpressions : Map[Expression, (String, String)] = Map(),
                              aggExprToLiteralExpr: Map[Expression, Expression] = Map(),
                              aggregateOper: Option[Aggregate] = None,
-                             curId: AtomicLong = new AtomicLong(-1)) {
+                             curId: AtomicLong = new AtomicLong(-1))
+  extends QueryMetaData[DruidQueryBuilder] {
   def dimension(d: DimensionSpec) = {
     this.copy(dimensions = (dimensions :+ d))
   }
@@ -95,7 +112,7 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
     case Some(pAs) => this.copy(postAggregations = Some(pAs :+ p))
   }
 
-  def interval(iC: IntervalCondition): Option[DruidQueryBuilder] = iC.typ match {
+  override def interval(iC: IntervalCondition): Option[DruidQueryBuilder] = iC.typ match {
     case IntervalConditionType.LT =>
       queryIntervals.ltCond(iC.dt).map(qI => this.copy(queryIntervals = qI))
     case IntervalConditionType.LTE =>
@@ -115,16 +132,6 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
   }
 
   def aggregateOp(op: Aggregate) = this.copy(aggregateOper = Some(op))
-
-  def nextAlias: String = s"alias${curId.getAndDecrement()}"
-
-  def nextAlias(cn: String): String = {
-    var oAttrName = cn + nextAlias
-    while (drInfo.sourceToDruidMapping.contains(oAttrName)) {
-      oAttrName = cn + nextAlias
-    }
-    oAttrName
-  }
 
   def druidColumn(name: String): Option[DruidColumn] = {
     drInfo.sourceToDruidMapping.get(projectionAliasMap.getOrElse(name, name))
@@ -151,6 +158,7 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
   /**
     * currently we don't transform queries with [[LimitSpec]] or [[HavingSpec]] into
     * post DruidOperations in Spark.
+    *
     * @return
     */
   def canPushToHistorical = !(
@@ -164,4 +172,45 @@ case class DruidQueryBuilder(val drInfo: DruidRelationInfo,
 object DruidQueryBuilder {
   def apply(drInfo: DruidRelationInfo) =
     new DruidQueryBuilder(drInfo, new QueryIntervals(drInfo))
+}
+
+case class DruidSelectQueryBuilder(drInfo: DruidRelationInfo,
+                                   queryIntervals: QueryIntervals,
+                                   dimensions: List[String] = List(),
+                                   metrics: List[String] = List(),
+                                   filterSpec: Option[FilterSpec] = None,
+                                   curId: AtomicLong = new AtomicLong(-1))
+  extends QueryMetaData[DruidSelectQueryBuilder] {
+
+  def druidColumn(name: String): Option[DruidColumn] = {
+    drInfo.sourceToDruidMapping.get(name)
+  }
+
+  def interval(iC: IntervalCondition): Option[DruidSelectQueryBuilder] = iC.typ match {
+    case IntervalConditionType.LT =>
+      queryIntervals.ltCond(iC.dt).map(qI => this.copy(queryIntervals = qI))
+    case IntervalConditionType.LTE =>
+      queryIntervals.ltECond(iC.dt).map(qI => this.copy(queryIntervals = qI))
+    case IntervalConditionType.GT =>
+      queryIntervals.gtCond(iC.dt).map(qI => this.copy(queryIntervals = qI))
+    case IntervalConditionType.GTE =>
+      queryIntervals.gtECond(iC.dt).map(qI => this.copy(queryIntervals = qI))
+  }
+
+  def withDimension(d : String): DruidSelectQueryBuilder =
+    this.copy(dimensions = dimensions :+ d)
+
+  def withMetric(d : String): DruidSelectQueryBuilder =
+    this.copy(metrics = metrics :+ d)
+
+  def filter(f: FilterSpec) = filterSpec match {
+    case Some(f1: FilterSpec) =>
+      this.copy(filterSpec = Some(LogicalFilterSpec("and", List(f1, f))))
+    case None => this.copy(filterSpec = Some(f))
+  }
+}
+
+object DruidSelectQueryBuilder {
+  def apply(drInfo: DruidRelationInfo) =
+    new DruidSelectQueryBuilder(drInfo, new QueryIntervals(drInfo))
 }

@@ -19,10 +19,13 @@ package org.sparklinedata.druid
 
 import com.github.nscala_time.time.Imports._
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.types.{LongType, TimestampType, DateType, StringType}
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
+import org.apache.spark.sql.types.{DateType, LongType, StringType, TimestampType}
 import org.joda.time.DateTime
 import org.sparklinedata.druid.metadata.{DruidColumn, DruidDataSource}
 import org.sparklinedata.spark.dateTime.Functions._
+import org.apache.spark.sql.sources
+import org.apache.spark.unsafe.types.UTF8String
 
 object PeriodExtractor {
   def unapply(e : Expression) : Option[Period] = e match {
@@ -64,7 +67,7 @@ object IntervalConditionType extends Enumeration {
 
 case class IntervalCondition(typ : IntervalConditionType.Value, dt : DateTime)
 
-class TimeReferenceExtractor(val dqb : DruidQueryBuilder, indexColumn : Boolean = true) {
+class TimeReferenceExtractor(val dqb : QueryMetaData[_], indexColumn : Boolean = true) {
 
   val drInfo = dqb.drInfo
 
@@ -81,7 +84,7 @@ class TimeReferenceExtractor(val dqb : DruidQueryBuilder, indexColumn : Boolean 
   }
 }
 
-class IntervalConditionExtractor(val dqb : DruidQueryBuilder) {
+class IntervalConditionExtractor(val dqb : QueryMetaData[_]) {
 
   val timeRefExtractor = new TimeReferenceExtractor(dqb, true)
 
@@ -103,7 +106,7 @@ class IntervalConditionExtractor(val dqb : DruidQueryBuilder) {
   *
   * @param dqb
  */
-class DateTimeConditionExtractor(val dqb : DruidQueryBuilder) {
+class DateTimeConditionExtractor(val dqb : QueryMetaData[_]) {
 
   val timeRefExtractor = new TimeReferenceExtractor(dqb, false)
 
@@ -127,7 +130,7 @@ class DateTimeConditionExtractor(val dqb : DruidQueryBuilder) {
   *
   * @param dqb
  */
-class DateTimeWithZoneExtractor(val dqb : DruidQueryBuilder) {
+class DateTimeWithZoneExtractor(val dqb : QueryMetaData[_]) {
 
   val rExtractor = this
 
@@ -153,7 +156,7 @@ class DateTimeWithZoneExtractor(val dqb : DruidQueryBuilder) {
  *
  * @param dqb
  */
-class TimeElementExtractor(val dqb : DruidQueryBuilder) {
+class TimeElementExtractor(val dqb : QueryMetaData[_]) {
 
   val functionToFormatMap : Map[AnyRef, String] = Map(
     eraFn -> "GG",
@@ -212,7 +215,7 @@ case class DateTimeGroupingElem(
                                inputFormat : Option[String] = None
                                )
 
-class DruidColumnExtractor(val dqb : DruidQueryBuilder) {
+class DruidColumnExtractor(val dqb : QueryMetaData[_]) {
   def unapply(e : Expression) : Option[DruidColumn] = e match {
     case AttributeReference(nm, _, _, _) => {
       val dC = dqb.druidColumn(nm)
@@ -222,7 +225,7 @@ class DruidColumnExtractor(val dqb : DruidQueryBuilder) {
   }
 }
 
-class SparkNativeTimeElementExtractor(val dqb : DruidQueryBuilder) {
+class SparkNativeTimeElementExtractor(val dqb : QueryMetaData[_]) {
 
   import SparkNativeTimeElementExtractor._
 
@@ -363,7 +366,7 @@ object SparkNativeTimeElementExtractor {
   val SECOND_FORMAT = "ss"
 }
 
-class SparkIntervalConditionExtractor(val dqb : DruidQueryBuilder) {
+class SparkIntervalConditionExtractor(val dqb : QueryMetaData[_]) {
 
   import SparkNativeTimeElementExtractor._
 
@@ -371,6 +374,11 @@ class SparkIntervalConditionExtractor(val dqb : DruidQueryBuilder) {
 
   private def millisSinceEpoch(value : Any) : DateTime =
     new DateTime(value.toString.toLong / 1000)
+
+  private def dateTimeFromString(value : String) : DateTime =
+     millisSinceEpoch(
+      DateTimeUtils.stringToTimestamp(UTF8String.fromString(value)).get
+    )
 
   def unapply(e : Expression) : Option[IntervalCondition] = e match {
     case LessThan(timeRefExtractor(dtGrp), Literal(value, TimestampType))
@@ -413,6 +421,34 @@ class SparkIntervalConditionExtractor(val dqb : DruidQueryBuilder) {
         (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
           dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
       Some(IntervalCondition(IntervalConditionType.LTE, millisSinceEpoch(value)))
+    case _ => None
+  }
+
+  def unapply(e : sources.Filter) : Option[IntervalCondition] = e match {
+    case sources.LessThan(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[Long]) =>
+      Some(IntervalCondition(IntervalConditionType.LT, millisSinceEpoch(value)))
+    case sources.LessThan(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[String]) =>
+      Some(IntervalCondition(IntervalConditionType.LT, dateTimeFromString(value.toString)))
+    case sources.LessThanOrEqual(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[Long]) =>
+      Some(IntervalCondition(IntervalConditionType.LTE, millisSinceEpoch(value)))
+    case sources.LessThanOrEqual(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[String]) =>
+      Some(IntervalCondition(IntervalConditionType.LTE, dateTimeFromString(value.toString)))
+    case sources.GreaterThan(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[Long]) =>
+      Some(IntervalCondition(IntervalConditionType.GT, millisSinceEpoch(value)))
+    case sources.GreaterThan(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[String]) =>
+      Some(IntervalCondition(IntervalConditionType.GT, dateTimeFromString(value.toString)))
+    case sources.GreaterThanOrEqual(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[Long]) =>
+      Some(IntervalCondition(IntervalConditionType.GTE, millisSinceEpoch(value)))
+    case sources.GreaterThanOrEqual(attribute, value)
+      if (attribute == dqb.drInfo.timeDimensionCol && value.isInstanceOf[String]) =>
+      Some(IntervalCondition(IntervalConditionType.GTE, dateTimeFromString(value.toString)))
     case _ => None
   }
 }

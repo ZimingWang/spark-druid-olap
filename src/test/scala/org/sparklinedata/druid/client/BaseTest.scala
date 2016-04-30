@@ -147,6 +147,7 @@ abstract class BaseTest extends fixture.FunSuite with
   override def beforeAll() = {
 
     TestHive.sparkContext.setLogLevel("INFO")
+    TestHive.setConf(DruidPlanner.DRUID_SELECT_QUERY_PAGESIZE.key, "10")
 
     register(TestHive)
     DruidPlanner(TestHive)
@@ -239,7 +240,7 @@ abstract class BaseTest extends fixture.FunSuite with
   def logDruidQueries(nm : String, df : DataFrame) : Unit = {
     logInfo(s"\n$nm Druid Queries:")
     DruidPlanner.getDruidQuerySpecs(df.queryExecution.sparkPlan).foreach {dq =>
-      logInfo(s"${Utils.queryToString(dq)}")
+      dq.logQuery
     }
   }
 

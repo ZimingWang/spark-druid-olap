@@ -92,7 +92,7 @@ private class DruidSelectResultIterator(is : InputStream,
         null
       } else {
         thisRoundHadData = false
-        onDone
+        onDone()
         val nextSelectSpec = selectSpec.withPagingIdentifier(nextPagingIdentifiers)
         val (r, nDone) = druidQuerySvrConn.executeSelectAsStream(nextSelectSpec)
         onDone = nDone
@@ -103,13 +103,26 @@ private class DruidSelectResultIterator(is : InputStream,
       val o : JsonAST.JValue = jValDeser.deserialize(jp, ctxt)
       val r = o.extract[SelectResultRow]
       t = jp.nextToken()
-      thisRoundHadData = true
-      r
+      if ( !thisRoundHadData ) {
+        // if this the first row in this round,
+        // check that it's offset is greater
+        // than the nextPagingIdentifiers value
+        val nextOffset = nextPagingIdentifiers(r.segmentId)
+        if (r.offset >= nextOffset ) {
+          finished = true
+          null
+        } else {
+          thisRoundHadData = true
+          r
+        }
+      } else {
+        r
+      }
     }
   }
 
   override protected def close(): Unit = {
-    onDone
+    onDone()
   }
 }
 

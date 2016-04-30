@@ -156,7 +156,17 @@ case class SelectorFilterSpec(`type`: String,
 
 case class RegexFilterSpec(`type`: String,
                            dimension: String,
-                           pattern: String) extends FilterSpec
+                           pattern: String) extends FilterSpec {
+  def this(dimension: String,
+           pattern: String) = this("regex", dimension, pattern)
+}
+
+case class StringContainsSpec(`type`: String,
+                           dimension: String,
+                              value: String) extends FilterSpec {
+  def this(dimension: String,
+           value: String) = this("contains", dimension, value)
+}
 
 case class LogicalFilterSpec(`type`: String,
                              fields: List[FilterSpec]) extends FilterSpec
@@ -505,10 +515,13 @@ case class SelectSpec(queryType: String,
                       metrics: List[String],
                       filter: Option[FilterSpec],
                       pagingSpec : PagingSpec,
+                      intervals: List[String] = List(),
                       descending : Boolean = false,
                       granularity : String = "all") {
 
   def withPagingIdentifier(ps :  Map[String, Int]) = {
     copy(pagingSpec = pagingSpec.copy(pagingIdentifiers = ps))
   }
+
+  def setIntervals(ins : List[Interval]) = this.copy(intervals = ins.map(_.toString))
 }

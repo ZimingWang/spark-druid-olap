@@ -19,11 +19,12 @@ package org.apache.spark.sql.sources.druid
 
 import java.util.TimeZone
 
+import org.apache.spark.sql.SQLConf.SQLConfEntry
 import org.apache.spark.sql.SQLConf.SQLConfEntry._
-import org.apache.spark.sql.execution.{SparkPlan, PhysicalRDD}
+import org.apache.spark.sql.execution.{PhysicalRDD, SparkPlan}
 import org.apache.spark.sql.{CachedTablePattern, SQLContext}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.sparklinedata.druid.{DruidQuery, DruidRDD, DruidQueryBuilder, Utils}
+import org.sparklinedata.druid._
 
 class DruidPlanner private[druid](val sqlContext : SQLContext) extends DruidTransforms {
 
@@ -77,9 +78,19 @@ object DruidPlanner {
     doc = "Specifes the TimeZone ID of the spark; " +
       "used by Druid for Date/TimeStamp transformations.")
 
-  def getDruidQuerySpecs(plan : SparkPlan) : Seq[DruidQuery] = {
+  val DRUID_SELECT_QUERY_PAGESIZE = intConf("spark.sparklinedata.druid.selectquery.pagesize",
+    defaultValue = Some(10000),
+    doc = "Num. of rows fetched on each invocation of Druid Select Query"
+  )
+
+  def getDruidQuerySpecs(plan : SparkPlan) : Seq[DruidQuerySpec] = {
     plan.collect {
-      case PhysicalRDD(_, r : DruidRDD, _, _, _) => r.dQuery
+      case PhysicalRDD(_, r : AbstarctDruidRDD, _, _, _) => r.dQuery
     }
+  }
+
+  def getConfValue[T](sqlContext : SQLContext,
+                      entry : SQLConfEntry[T]) : T = {
+    sqlContext.getConf(entry)
   }
 }

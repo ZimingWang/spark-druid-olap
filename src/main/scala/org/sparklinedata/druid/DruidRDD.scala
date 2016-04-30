@@ -20,14 +20,15 @@ package org.sparklinedata.druid
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRowWithSchema
 import org.apache.spark.sql.catalyst.util.DateTimeUtils.SQLTimestamp
-import org.apache.spark.sql.types.{LongType, StringType, StructField, TimestampType}
+import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.{InterruptibleIterator, Partition, TaskContext}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.joda.time.Interval
-import org.sparklinedata.druid.client.{DruidQueryServerClient, QueryResultRow}
+import org.sparklinedata.druid.client.{DruidQueryServerClient, QueryResultRow, SelectResultRow}
 import org.sparklinedata.druid.metadata.DruidMetadataCache
 import org.sparklinedata.druid.metadata.DruidRelationInfo
 import org.sparklinedata.druid.metadata.HistoricalServerAssignment
@@ -51,13 +52,58 @@ class BrokerPartition(idx: Int,
   def intervals : List[Interval] = List(i)
 }
 
+abstract class AbstarctDruidRDD(sqlContext: SQLContext,
+               val drInfo : DruidRelationInfo,
+               val dQuery : DruidQuerySpec)
+  extends RDD[InternalRow](sqlContext.sparkContext, Nil) {
+
+  override protected def getPartitions: Array[Partition] = {
+    if (dQuery.queryHistoricalServer) {
+      val hAssigns = DruidMetadataCache.assignHistoricalServers(
+        drInfo.host,
+        drInfo.druidDS.name,
+        drInfo.options,
+        dQuery.intervalSplits
+      )
+      hAssigns.zipWithIndex.map(t => new HistoricalPartition(t._2, t._1)).toArray
+    } else {
+      val broker = DruidMetadataCache.getDruidClusterInfo(drInfo.host,
+        drInfo.options).curatorConnection.getBroker
+      dQuery.intervalSplits.zipWithIndex.map(t => new BrokerPartition(t._2, broker, t._1)).toArray
+    }
+  }
+
+  /**
+    * conversion from Druid values to Spark values. Most of the conversion cases are handled by
+    * cast expressions in the [[org.apache.spark.sql.execution.Project]] operator above the
+    * DruidRelation Operator; but Strings need to be converted to [[UTF8String]] strings.
+    *
+    * @param f
+    * @param druidVal
+    * @return
+    */
+  def sparkValue(f : StructField, druidVal : Any) : Any = f.dataType match {
+    case TimestampType if druidVal.isInstanceOf[Double] =>
+      druidVal.asInstanceOf[Double].longValue().asInstanceOf[SQLTimestamp]
+    case StringType if druidVal != null => UTF8String.fromString(druidVal.toString)
+    case LongType if druidVal.isInstanceOf[BigInt] =>
+      druidVal.asInstanceOf[BigInt].longValue()
+    case LongType if druidVal.isInstanceOf[Double] =>
+      druidVal.asInstanceOf[Double].longValue()
+    case _ => druidVal
+  }
+}
+
 
 class DruidRDD(sqlContext: SQLContext,
-              val drInfo : DruidRelationInfo,
-                val dQuery : DruidQuery)  extends  RDD[InternalRow](sqlContext.sparkContext, Nil) {
+               drInfo : DruidRelationInfo,
+               dQuery : DruidQuery)  extends
+  AbstarctDruidRDD(sqlContext, drInfo, dQuery) {
+
+  def druidQuery = this.dQuery
+
   @DeveloperApi
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
-
 
     val p = split.asInstanceOf[DruidPartition]
     val mQry = dQuery.q.setIntervals(p.intervals)
@@ -72,40 +118,61 @@ class DruidRDD(sqlContext: SQLContext,
         schema)
     }
   }
+}
 
-  override protected def getPartitions: Array[Partition] = {
-    if (dQuery.queryHistoricalServer) {
-    val hAssigns = DruidMetadataCache.assignHistoricalServers(
-      drInfo.host,
-      drInfo.druidDS.name,
-      drInfo.options,
-      dQuery.intervalSplits
-    )
-    hAssigns.zipWithIndex.map(t => new HistoricalPartition(t._2, t._1)).toArray
-  } else {
-      val broker = DruidMetadataCache.getDruidClusterInfo(drInfo.host,
-        drInfo.options).curatorConnection.getBroker
-      dQuery.intervalSplits.zipWithIndex.map(t => new BrokerPartition(t._2, broker, t._1)).toArray
+class DruidSelectRDD(sqlContext: SQLContext,
+                     drInfo : DruidRelationInfo,
+                     dQuery : DruidSelectQuery)
+  extends AbstarctDruidRDD(sqlContext, drInfo, dQuery) {
+
+  def druidEventColumnName(spkColNm : String) : String = {
+    if ( spkColNm == drInfo.timeDimensionCol ) {
+      "timestamp"
+    } else {
+      drInfo.sourceToDruidMapping(spkColNm).name
     }
   }
 
-  /**
-   * conversion from Druid values to Spark values. Most of the conversion cases are handled by
-   * cast expressions in the [[org.apache.spark.sql.execution.Project]] operator above the
-   * DruidRelation Operator; but Strings need to be converted to [[UTF8String]] strings.
-    *
-    * @param f
-   * @param druidVal
-   * @return
-   */
-  def sparkValue(f : StructField, druidVal : Any) : Any = f.dataType match {
-    case TimestampType if druidVal.isInstanceOf[Double] =>
-      druidVal.asInstanceOf[Double].longValue().asInstanceOf[SQLTimestamp]
-    case StringType if druidVal != null => UTF8String.fromString(druidVal.toString)
-    case LongType if druidVal.isInstanceOf[BigInt] =>
-      druidVal.asInstanceOf[BigInt].longValue()
-    case LongType if druidVal.isInstanceOf[Double] =>
-      druidVal.asInstanceOf[Double].longValue()
-    case _ => druidVal
+  override def sparkValue(f : StructField, iVal : Any) : Any = {
+    val druidVal : String = if (iVal == null) null else iVal.toString
+
+    f.dataType match {
+
+      case x if x == null => null
+      case TimestampType =>
+        DateTimeUtils.stringToTimestamp(UTF8String.fromString(druidVal)).getOrElse(null)
+      case StringType => UTF8String.fromString(druidVal.toString)
+      case BooleanType => druidVal.toBoolean
+      case DateType =>
+        DateTimeUtils.stringToDate(UTF8String.fromString(druidVal)).getOrElse(null)
+      case DoubleType => druidVal.toDouble
+      case FloatType => druidVal.toFloat
+      case decTyp: DecimalType => Decimal(druidVal)
+      case IntegerType => druidVal.toInt
+      case ByteType => druidVal.toByte
+      case LongType => druidVal.toLong
+      case ShortType => druidVal.toShort
+      case _ => druidVal
+    }
   }
+
+  @DeveloperApi
+  override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
+
+    val p = split.asInstanceOf[DruidPartition]
+    val mQry = dQuery.q.setIntervals(p.intervals)
+    Utils.logQuery(mQry)
+    val client = p.queryClient
+    val dr = client.executeSelectAsStreamWithResult(mQry)
+    context.addTaskCompletionListener{ context => dr.closeIfNeeded() }
+    val r = new InterruptibleIterator[SelectResultRow](context, dr)
+    val schema = dQuery.schema
+    r.map { r =>
+      new GenericInternalRowWithSchema(schema.fields.map{f =>
+        sparkValue(f, r.event(druidEventColumnName(f.name)))
+      },
+        schema)
+    }
+  }
+
 }
