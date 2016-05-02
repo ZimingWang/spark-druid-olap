@@ -120,6 +120,9 @@ class DefaultSource extends RelationProvider with Logging {
       parameters.get(NON_AGG_QUERY_HANDLING).
       getOrElse(DEFAULT_NON_AGG_QUERY_HANDLING)
     )
+    val numSegmentsPerHistoricalQuery : Int =
+      parameters.get(NUM_SEGMENTS_PER_HISTORICAL_QUERY).
+        getOrElse(DEFAULT_NUM_SEGMENTS_PER_HISTORICAL_QUERY).toInt
 
     val options = DruidRelationOptions(
       maxCardinality,
@@ -132,7 +135,8 @@ class DefaultSource extends RelationProvider with Logging {
       zkDruidPath,
       queryHistorical,
       zkQualifyDiscoveryNames,
-      nonAggregateQueryHandling
+      nonAggregateQueryHandling,
+      numSegmentsPerHistoricalQuery
     )
 
 
@@ -244,4 +248,7 @@ object DefaultSource {
 
   val NON_AGG_QUERY_HANDLING = "nonAggregateQueryHandling"
   val DEFAULT_NON_AGG_QUERY_HANDLING = NonAggregateQueryHandling.PUSH_NONE.toString
+
+  val NUM_SEGMENTS_PER_HISTORICAL_QUERY = "numSegmentsPerHistoricalQuery"
+  val DEFAULT_NUM_SEGMENTS_PER_HISTORICAL_QUERY = Int.MaxValue.toString
 }

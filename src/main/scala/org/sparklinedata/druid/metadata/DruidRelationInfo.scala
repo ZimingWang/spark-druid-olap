@@ -54,7 +54,8 @@ case class DruidRelationOptions(val maxCardinality : Long,
                                 zkDruidPath : String,
                                 queryHistoricalServers : Boolean,
                                 zkQualifyDiscoveryNames : Boolean,
-                                nonAggQueryHandling : NonAggregateQueryHandling.Value)
+                                nonAggQueryHandling : NonAggregateQueryHandling.Value,
+                                numSegmentsPerHistoricalQuery : Int)
 
 private[druid] object MappingBuilder extends Logging {
 

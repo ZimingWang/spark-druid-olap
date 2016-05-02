@@ -59,14 +59,24 @@ abstract class AbstarctDruidRDD(sqlContext: SQLContext,
 
   override protected def getPartitions: Array[Partition] = {
     if (dQuery.queryHistoricalServer) {
-      val hAssigns = DruidMetadataCache.assignHistoricalServers(
-        drInfo.host,
-        drInfo.druidDS.name,
-        drInfo.options,
-        dQuery.intervalSplits
-      )
-      hAssigns.zipWithIndex.map(t => new HistoricalPartition(t._2, t._1)).toArray
-    } else {
+    val hAssigns = DruidMetadataCache.assignHistoricalServers(
+      drInfo.host,
+      drInfo.druidDS.name,
+      drInfo.options,
+      dQuery.intervalSplits
+    )
+      var idx = -1
+      val numSegmentsPerQuery = drInfo.options.numSegmentsPerHistoricalQuery
+
+      (for(
+        hA <- hAssigns;
+           ins <- hA.intervals.sliding(numSegmentsPerQuery,numSegmentsPerQuery)
+      ) yield {
+        idx = idx + 1
+        new HistoricalPartition(idx, new HistoricalServerAssignment(hA.server, ins))
+      }
+        ).toArray
+  } else {
       val broker = DruidMetadataCache.getDruidClusterInfo(drInfo.host,
         drInfo.options).curatorConnection.getBroker
       dQuery.intervalSplits.zipWithIndex.map(t => new BrokerPartition(t._2, broker, t._1)).toArray
