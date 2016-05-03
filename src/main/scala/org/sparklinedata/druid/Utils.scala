@@ -22,7 +22,7 @@ import org.json4s.ext.EnumNameSerializer
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 import org.json4s.{Extraction, ShortTypeHints}
-import org.sparklinedata.druid.client.{QueryResultRowSerializer, SelectResultRowSerializer}
+import org.sparklinedata.druid.client.{DruidQueryServerClient, QueryResultRowSerializer, SelectResultRowSerializer}
 import org.sparklinedata.druid.metadata._
 
 import scala.util.Random
@@ -94,6 +94,12 @@ object Utils extends Logging {
 
   def logQuery(qSpec: QuerySpec): Unit = {
     log.info("\nDruid Query:\n" + pretty(render(Extraction.decompose(qSpec))))
+  }
+
+  def logQuery(queryClient : DruidQueryServerClient,
+               qSpec: QuerySpec): Unit = {
+    log.info(s"\nDruid Query against ${queryClient.host}:${queryClient.port}:\n" +
+      pretty(render(Extraction.decompose(qSpec))))
   }
 
   def logQuery(dq: DruidSelectQuery): Unit = {

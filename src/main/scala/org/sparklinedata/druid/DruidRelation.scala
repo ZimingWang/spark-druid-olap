@@ -52,7 +52,7 @@ case class DruidQuery(q : QuerySpec,
 
   def this(q : QuerySpec,
            queryHistoricalServer : Boolean = false) =
-    this(q, queryHistoricalServer, q.intervals.map(Interval.parse(_)), None)
+    this(q, queryHistoricalServer, q.intervalList.map(Interval.parse(_)), None)
 
   def logQuery : Unit = Utils.logQuery(this)
 
@@ -152,7 +152,7 @@ case class DruidRelation (val info : DruidRelationInfo,
 
   private def selectQuery(requiredColumns: Array[String],
                   dsb : DruidSelectQueryBuilder) : DruidSelectQuery = {
-    val ss = SelectSpec(
+    val ss = SelectSpecWithIntervals(
       "select",
       dsb.drInfo.druidDS.name,
       dsb.dimensions,

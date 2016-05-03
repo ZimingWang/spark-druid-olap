@@ -29,19 +29,37 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.joda.time.Interval
 import org.sparklinedata.druid.client.{DruidQueryServerClient, QueryResultRow, SelectResultRow}
-import org.sparklinedata.druid.metadata.DruidMetadataCache
-import org.sparklinedata.druid.metadata.DruidRelationInfo
-import org.sparklinedata.druid.metadata.HistoricalServerAssignment
+import org.sparklinedata.druid.metadata.{DruidMetadataCache, DruidRelationInfo, DruidSegmentInfo, HistoricalServerAssignment}
 
 abstract class DruidPartition extends Partition {
   def queryClient : DruidQueryServerClient
   def intervals : List[Interval]
+  def segIntervals : List[(DruidSegmentInfo, Interval)]
+
+  def setIntervalsOnQuerySpec(q : QuerySpec) : QuerySpec = {
+    if ( segIntervals == null) {
+      q.setIntervals(intervals)
+    } else {
+      q.setSegIntervals(segIntervals)
+    }
+  }
+
+  def setIntervalsOnSelectSpec(q : SelectSpec) : SelectSpec = {
+    if ( segIntervals == null) {
+      q.setIntervals(intervals)
+    } else {
+      q.setSegIntervals(segIntervals)
+    }
+  }
 }
 
 class HistoricalPartition(idx: Int, val hs : HistoricalServerAssignment) extends DruidPartition {
   override def index: Int = idx
   def queryClient : DruidQueryServerClient = new DruidQueryServerClient(hs.server.host)
-  def intervals : List[Interval] = hs.intervals
+
+  def intervals : List[Interval] = hs.segmentIntervals.map(_._2)
+
+  def segIntervals : List[(DruidSegmentInfo, Interval)] = hs.segmentIntervals
 }
 
 class BrokerPartition(idx: Int,
@@ -50,6 +68,8 @@ class BrokerPartition(idx: Int,
   override def index: Int = idx
   def queryClient : DruidQueryServerClient = new DruidQueryServerClient(broker)
   def intervals : List[Interval] = List(i)
+
+  def segIntervals : List[(DruidSegmentInfo, Interval)] = null
 }
 
 abstract class AbstarctDruidRDD(sqlContext: SQLContext,
@@ -70,10 +90,10 @@ abstract class AbstarctDruidRDD(sqlContext: SQLContext,
 
       (for(
         hA <- hAssigns;
-           ins <- hA.intervals.sliding(numSegmentsPerQuery,numSegmentsPerQuery)
+           segIns <- hA.segmentIntervals.sliding(numSegmentsPerQuery,numSegmentsPerQuery)
       ) yield {
         idx = idx + 1
-        new HistoricalPartition(idx, new HistoricalServerAssignment(hA.server, ins))
+        new HistoricalPartition(idx, new HistoricalServerAssignment(hA.server, segIns))
       }
         ).toArray
   } else {
@@ -116,14 +136,15 @@ class DruidRDD(sqlContext: SQLContext,
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
 
     val p = split.asInstanceOf[DruidPartition]
-    val mQry = dQuery.q.setIntervals(p.intervals)
-    Utils.logQuery(mQry)
+    val mQry =  p.setIntervalsOnQuerySpec(dQuery.q) // dQuery.q.setIntervals(p.intervals)
     val client = p.queryClient
+    Utils.logQuery(client, mQry)
     val dr = client.executeQueryAsStream(mQry)
     context.addTaskCompletionListener{ context => dr.closeIfNeeded() }
     val r = new InterruptibleIterator[QueryResultRow](context, dr)
     val schema = dQuery.schema(drInfo)
     r.map { r =>
+      // log.info(s"Received  druid row from ${client.host}: $r")
       new GenericInternalRowWithSchema(schema.fields.map(f => sparkValue(f, r.event(f.name))),
         schema)
     }
@@ -170,7 +191,7 @@ class DruidSelectRDD(sqlContext: SQLContext,
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
 
     val p = split.asInstanceOf[DruidPartition]
-    val mQry = dQuery.q.setIntervals(p.intervals)
+    val mQry = p.setIntervalsOnSelectSpec(dQuery.q)
     Utils.logQuery(mQry)
     val client = p.queryClient
     val dr = client.executeSelectAsStreamWithResult(mQry)
