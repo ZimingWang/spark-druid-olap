@@ -108,7 +108,10 @@ object Utils extends Logging {
     log.info("\nStar Schema:\n" + pretty(render(Extraction.decompose(ss))))
   }
 
-  def queryToString(dq: DruidQuery): String = pretty(render(Extraction.decompose(dq)))
+  def queryToString(dqs: DruidQuerySpec): String = dqs match {
+    case dq : DruidQuery => pretty (render (Extraction.decompose (dq) ) )
+    case sq : DruidSelectQuery => pretty (render (Extraction.decompose (sq) ) )
+  }
 
   def queryToString(qSpec: QuerySpec): String = pretty(render(Extraction.decompose(qSpec)))
 

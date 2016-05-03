@@ -1,6 +1,6 @@
 name := "spark-druid-olap"
 
-version := "0.0.5"
+version := "0.0.5s"
 
 organization := "SparklineData"
 
