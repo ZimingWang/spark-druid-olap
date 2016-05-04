@@ -25,6 +25,7 @@ import org.apache.spark.sql.execution.{PhysicalRDD, SparkPlan}
 import org.apache.spark.sql.{CachedTablePattern, SQLContext}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.sparklinedata.druid._
+import org.sparklinedata.druid.client.ConnectionManager
 
 class DruidPlanner private[druid](val sqlContext : SQLContext) extends DruidTransforms {
 
@@ -58,7 +59,10 @@ class DruidPlanner private[druid](val sqlContext : SQLContext) extends DruidTran
 
 object DruidPlanner {
 
-  def apply(sqlContext : SQLContext) = new DruidPlanner(sqlContext)
+  def apply(sqlContext : SQLContext) : Unit = {
+    new DruidPlanner(sqlContext)
+    ConnectionManager.init(sqlContext)
+  }
 
   val SPARKLINEDATA_CACHE_TABLES_TOCHECK = stringSeqConf("spark.sparklinedata.cache.tables.tocheck",
     defaultValue = Some(List()),
@@ -81,6 +85,17 @@ object DruidPlanner {
   val DRUID_SELECT_QUERY_PAGESIZE = intConf("spark.sparklinedata.druid.selectquery.pagesize",
     defaultValue = Some(10000),
     doc = "Num. of rows fetched on each invocation of Druid Select Query"
+  )
+
+  val DRUID_CONN_POOL_MAX_CONNECTIONS = intConf("spark.sparklinedata.druid.max.connections",
+    defaultValue = Some(100),
+    doc = "Max. number of Http Connections to Druid Cluster"
+  )
+
+  val DRUID_CONN_POOL_MAX_CONNECTIONS_PER_ROUTE = intConf(
+    "spark.sparklinedata.druid.max.connections.per.route",
+    defaultValue = Some(20),
+    doc = "Max. number of Http Connections to each server in Druid Cluster"
   )
 
   def getDruidQuerySpecs(plan : SparkPlan) : Seq[DruidQuerySpec] = {
