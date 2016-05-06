@@ -112,6 +112,15 @@ class SelectQueryTest extends BaseTest with BeforeAndAfterAll with Logging {
     1, true, true
   )
 
+  test("weekproject", {
+    """
+         select weekofyear(o_orderdate), l_returnflag as f, l_linestatus as s, l_shipdate, s_region, s_nation, c_nation
+         from orderLineItemPartSupplier_select
+    """
+  },
+    1, true, true
+  )
+
   test("sparkIntervalFilter2", {
     """
          select l_returnflag as f, l_linestatus as s, l_shipdate, s_region, s_nation, c_nation

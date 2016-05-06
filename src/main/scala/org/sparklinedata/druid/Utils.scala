@@ -101,8 +101,8 @@ object Utils extends Logging {
     log.info(s"\nDruid Query against ${queryClient.host}:${queryClient.port}:\n" +
       pretty(render(Extraction.decompose(qSpec))))
 
-    println(s"\nDruid Query against ${queryClient.host}:${queryClient.port}:\n" +
-      pretty(render(Extraction.decompose(qSpec))))
+//    println(s"\nDruid Query against ${queryClient.host}:${queryClient.port}:\n" +
+//      pretty(render(Extraction.decompose(qSpec))))
   }
 
   def logQuery(dq: DruidSelectQuery): Unit = {

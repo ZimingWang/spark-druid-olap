@@ -67,6 +67,8 @@ private[druid] object MappingBuilder extends Logging {
    */
   def supportedDataType(dT : DataType) : Boolean = dT match {
     case t if t.isInstanceOf[NumericType] => true
+    case TimestampType => true
+    case DateType => true
     case StringType => true
     case _ => false
   }
